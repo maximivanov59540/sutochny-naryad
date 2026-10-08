@@ -994,7 +994,7 @@ input { user-select: text; -webkit-user-select: text; }
 /* ---------- Итоги ---------- */
 
 .dossier-final { width: min(1100px, 100%); }
-.final-stamp { display: block; width: max-content; max-width: 100%; margin: 3vh auto 1vh; font-size: clamp(30px, 6.5vh, 76px); border-width: 8px; padding: .1em .5em; transform: rotate(-4deg); animation: stamp-in .5s ease-out; text-align: center; }
+.final-stamp { display: block; width: max-content; max-width: 100%; margin: 3vh auto 3vh; font-size: clamp(28px, 5.6vh, 66px); line-height: 1.1; border-width: 8px; padding: .1em .5em; transform: rotate(-4deg); animation: stamp-in .5s ease-out; text-align: center; }
 .dossier-final .lead { text-align: center; }
 .final-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 3vh 4vw; margin-top: 3vh; }
 .final-table { width: 100%; border-collapse: collapse; font-family: var(--font-type); font-size: clamp(16px, 2.4vh, 26px); }
