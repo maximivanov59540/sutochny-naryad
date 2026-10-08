@@ -1,10 +1,57 @@
-/* Игра «Суточный наряд роты» — логика. */
+/* Движок игры: доска карточек, две команды, финальный гость. Тексты и задания — в data.js каждой игры. */
 (function () {
   'use strict';
 
   var DATA = window.GAME_DATA;
-  var STORAGE_KEY = 'sutochny-naryad:game';
-  var AUTH_KEY = 'sutochny-naryad:auth';
+
+  // Подписи интерфейса. По умолчанию — «Суточный наряд роты»; другая игра переопределяет их в DATA.ui.
+  var T = {
+    storageKey: 'sutochny-naryad:game',
+    authKey: 'sutochny-naryad:auth',
+    brand: 'Суточный наряд роты',
+    kicker: 'Основы военной подготовки · Устав внутренней службы ВС РФ',
+    topics: ['Предназначение и состав суточного наряда', 'Дневальный и дежурный по роте', 'Развод суточного наряда'],
+    sides: {
+      naryad: { name: 'Наряд', short: 'наряд', now: 'Отвечает наряд', done: 'Наряд справился',
+        wrong: 'Наряд ошибся.', wrongIn: 'Наряд ошибся в', pass: 'Наряд не знает.', fail: 'Наряд не справился.' },
+      check: { name: 'Проверяющие', short: 'проверяющие', now: 'Выручают проверяющие', done: 'Выручили проверяющие',
+        address: 'Проверяющие, ' }
+    },
+    schemeButton: 'Кто есть кто',
+    schemeKicker: 'Перед заступлением',
+    schemeTitle: 'Кто есть кто в суточном наряде',
+    schemeCaption: 'Суточный наряд роты — ст. 258 УВС',
+    orderHead: 'Порядок развода',
+    book: 'Книга замечаний',
+    bookTo: 'В книгу замечаний',
+    bookEntry: 'Запись в книгу замечаний',
+    bookPass: 'Не знают — в книгу замечаний',
+    bookEmpty: 'Страницы чистые — ни одного замечания за сутки.',
+    passToCheck: 'Не знают — передать проверяющим',
+    pickHint: 'Проверяющие выбирают карточку',
+    callBoss: 'Вызвать генерала',
+    callBossNow: 'Вызвать генерала прямо сейчас?',
+    allDone: 'Все карточки сыграны. Встречайте генерала!',
+    bossOpens: 'Генерал открывает',
+    bossQuestion: 'Вопрос генерала',
+    bossHappy: 'Генерал доволен',
+    bossFrown: 'Генерал хмурится',
+    bossClean: 'Генерал доволен — дальше',
+    greetWeak: 'Вяло',
+    greetLoud: 'Громко и чётко!',
+    finalGreet: '«Смирно!» генералу',
+    finalQuestions: 'Вопросы генерала',
+    finalKicker: 'Итоги суток'
+  };
+  (function merge(dst, src) {
+    Object.keys(src || {}).forEach(function (k) {
+      if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && dst[k]) merge(dst[k], src[k]);
+      else dst[k] = src[k];
+    });
+  })(T, DATA.ui);
+
+  var STORAGE_KEY = T.storageKey;
+  var AUTH_KEY = T.authKey;
   var PASSWORD_HASH = 1984369114866794; // хэш пароля: строчные русские буквы без пробелов
   var UNDO_LIMIT = 80;
   var LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
@@ -12,10 +59,7 @@
     Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8,
     Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3, Numpad5: 4, Numpad6: 5, Numpad7: 6, Numpad8: 7, Numpad9: 8
   };
-  var SIDES = {
-    naryad: { name: 'Наряд', now: 'Отвечает наряд', done: 'Наряд справился' },
-    check: { name: 'Проверяющие', now: 'Выручают проверяющие', done: 'Выручили проверяющие' }
-  };
+  var SIDES = T.sides;
 
   var appEl = document.getElementById('app');
   var toastEl = document.getElementById('toast');
@@ -532,7 +576,7 @@
     if (!c || c.phase !== 'done') return;
     commit(function (s) { s.current = null; });
     Sound.play('click');
-    if (doneCount() === DATA.cards.length) toast('Все карточки сыграны. Встречайте генерала!');
+    if (doneCount() === DATA.cards.length) toast(T.allDone);
   }
 
   /* ---------- Генерал ---------- */
@@ -541,7 +585,7 @@
     if (state.screen !== 'board' || state.current) return;
     var left = DATA.cards.length - doneCount();
     if (left > 0) {
-      askConfirm('Остались несыгранные карточки: ' + left + '. Вызвать генерала прямо сейчас?', 'Вызвать генерала', startGeneral);
+      askConfirm('Остались несыгранные карточки: ' + left + '. ' + T.callBossNow, T.callBoss, startGeneral);
       return;
     }
     startGeneral();
@@ -674,7 +718,7 @@
     }
     return '<header class="topbar' + (kind === 'general' ? ' topbar-general' : '') + '">' +
       '<div class="brand"><span class="brand-mark" aria-hidden="true"></span>' +
-      '<span class="brand-name head">Суточный наряд роты</span></div>' +
+      '<span class="brand-name head">' + esc(T.brand) + '</span></div>' +
       mid +
       '<div class="topbar-right">' +
       '<span class="clock head" id="clock" title="Время с начала игры">' + (state.startedAt ? fmtTime(Date.now() - state.startedAt) : '') + '</span>' +
@@ -688,7 +732,7 @@
   function renderGate() {
     return '<div class="screen"><div class="dossier dossier-gate enter" data-k="gate">' +
       '<div class="kicker">Основы военной подготовки</div>' +
-      '<div class="title head">Суточный наряд роты</div>' +
+      '<div class="title head">' + esc(T.brand) + '</div>' +
       '<form class="gate-form" data-form="gate" autocomplete="off">' +
       '<label class="gate-label" for="gate-input">Пароль:</label>' +
       '<div class="gate-row"><input class="gate-input" id="gate-input" type="password" autofocus>' +
@@ -701,14 +745,10 @@
   function renderTitle() {
     return '<div class="screen"><div class="dossier dossier-title enter" data-k="title">' +
       '<span class="stamp stamp-corner head">Для служебного пользования</span>' +
-      '<div class="kicker">Основы военной подготовки · Устав внутренней службы ВС РФ</div>' +
-      '<div class="title head">Суточный наряд роты</div>' +
+      '<div class="kicker">' + esc(T.kicker) + '</div>' +
+      '<div class="title head">' + esc(T.brand) + '</div>' +
       '<div class="subtitle head">' + esc(DATA.subtitle) + '</div>' +
-      '<ul class="topics">' +
-      '<li>Предназначение и состав суточного наряда</li>' +
-      '<li>Дневальный и дежурный по роте</li>' +
-      '<li>Развод суточного наряда</li>' +
-      '</ul>' +
+      '<ul class="topics">' + T.topics.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
       '<div class="doc-actions">' +
       '<button class="btn btn-primary btn-big" data-action="to-rules">Начать <span class="kbd">Пробел</span></button>' +
       '</div></div></div>';
@@ -724,7 +764,7 @@
       '<ol class="rules">' + DATA.rules.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ol>' +
       '<div class="grades">' + grades + '</div>' +
       '<div class="doc-actions">' +
-      '<button class="btn btn-primary btn-big" data-action="to-scheme">Кто есть кто <span class="kbd">Пробел</span></button>' +
+      '<button class="btn btn-primary btn-big" data-action="to-scheme">' + esc(T.schemeButton) + ' <span class="kbd">Пробел</span></button>' +
       '</div></div></div>';
   }
 
@@ -748,12 +788,12 @@
       } else {
         html += schemeNode(node, visible, i === 0 ? ' node-top' : '');
       }
-      if (i === 0) html += '<div class="scheme-caption' + (step > 1 ? ' is-visible' : '') + '">Суточный наряд роты — ст. 258 УВС</div>';
+      if (i === 0) html += '<div class="scheme-caption' + (step > 1 ? ' is-visible' : '') + '">' + esc(T.schemeCaption) + '</div>';
     });
     html += '</div>';
     var last = step >= DATA.scheme.length;
     return '<div class="screen screen-scheme"><div class="scheme enter" data-k="scheme">' +
-      '<div class="scheme-head"><div class="kicker">Перед заступлением</div><div class="scheme-title head">Кто есть кто в суточном наряде</div></div>' +
+      '<div class="scheme-head"><div class="kicker">' + esc(T.schemeKicker) + '</div><div class="scheme-title head">' + esc(T.schemeTitle) + '</div></div>' +
       html +
       '<div class="doc-actions">' +
       '<button class="btn btn-primary btn-big" data-action="scheme-next">' + (last ? 'К карточкам' : 'Дальше') + ' <span class="kbd">Пробел</span></button>' +
@@ -764,7 +804,7 @@
 
   function resultLabel(res) {
     if (!res.by) return 'Замечание';
-    return '+' + res.points + ' · ' + (res.by === 'naryad' ? 'наряд' : 'проверяющие');
+    return '+' + res.points + ' · ' + SIDES[res.by].short;
   }
 
   function renderBoard() {
@@ -793,11 +833,11 @@
       '<aside class="side">' +
       '<div class="pool"><div class="pool-label head">Общий котёл</div>' +
       '<div class="pool-value head" data-pool>' + pool() + '</div>' +
-      '<div class="pool-split"><span><i class="dot dot-naryad"></i>Наряд +' + e.naryad + '</span>' +
-      '<span><i class="dot dot-check"></i>Проверяющие +' + e.check + '</span></div></div>' +
-      '<div class="book"><div class="book-head head">Книга замечаний <b>' + state.book.length + '</b></div>' + bookList + '</div>' +
-      '<div class="side-hint">' + (allDone ? 'Все карточки сыграны' : 'Проверяющие выбирают карточку <span class="kbd">1–9</span>') + '</div>' +
-      '<button class="btn btn-general' + (allDone ? ' is-ready' : '') + '" data-action="general">Вызвать генерала</button>' +
+      '<div class="pool-split"><span><i class="dot dot-naryad"></i>' + esc(SIDES.naryad.name) + ' +' + e.naryad + '</span>' +
+      '<span><i class="dot dot-check"></i>' + esc(SIDES.check.name) + ' +' + e.check + '</span></div></div>' +
+      '<div class="book"><div class="book-head head">' + esc(T.book) + ' <b>' + state.book.length + '</b></div>' + bookList + '</div>' +
+      '<div class="side-hint">' + (allDone ? 'Все карточки сыграны' : esc(T.pickHint) + ' <span class="kbd">1–9</span>') + '</div>' +
+      '<button class="btn btn-general' + (allDone ? ' is-ready' : '') + '" data-action="general">' + esc(T.callBoss) + '</button>' +
       '</aside></main>' +
       (state.current ? renderTask() : '') +
       '</div>';
@@ -832,7 +872,7 @@
     if (c.stage !== 2) return '';
     if (c.phase === 'done') {
       var r = c.result;
-      if (!r.by) return '<span class="side-now side-none head">Запись в книгу замечаний</span>';
+      if (!r.by) return '<span class="side-now side-none head">' + esc(T.bookEntry) + '</span>';
       return '<span class="side-now side-' + r.by + ' head">' + SIDES[r.by].done + ' · +' + pts(r.points) + '</span>';
     }
     var value = DATA.points[c.phase] * c.mult;
@@ -859,16 +899,17 @@
 
   function checkMessage(c, card) {
     if (c.phase !== 'check') return '';
-    var who = 'Проверяющие, ';
+    var who = SIDES.check.address;
+    var first = SIDES.naryad;
     var text;
     if (card.kind === 'choice') {
-      text = (c.why === 'timeout' ? 'Время вышло! ' : c.why === 'pass' ? 'Наряд не знает. ' : 'Наряд ошибся. ') + who + 'ваш вариант?';
+      text = (c.why === 'timeout' ? 'Время вышло! ' : (c.why === 'pass' ? first.pass : first.wrong) + ' ') + who + 'ваш вариант?';
     } else if (c.why === 'timeout') {
       text = 'Время вышло! ' + who + 'доделайте задание.';
     } else if (c.why === 'pass') {
-      text = 'Наряд не справился. ' + who + 'доделайте задание.';
+      text = first.fail + ' ' + who + 'доделайте задание.';
     } else if (card.kind === 'list') {
-      text = 'Наряд ошибся в ' + c.info.errors + ' из ' + c.info.total + '. ' + who + 'найдите ошибки и исправьте.';
+      text = first.wrongIn + ' ' + c.info.errors + ' из ' + c.info.total + '. ' + who + 'найдите ошибки и исправьте.';
     } else if (card.kind === 'order') {
       text = 'Не на своих местах: ' + c.info.errors + ' из ' + c.info.total + '. ' + who + 'исправьте порядок.';
     } else {
@@ -891,7 +932,7 @@
     } else {
       html += '<div class="task-actions">';
       if (isUntouched(c)) html += '<button class="btn btn-ghost" data-action="cancel-card">Закрыть карточку <span class="kbd">Esc</span></button>';
-      html += '<button class="btn" data-action="pass">' + (c.phase === 'naryad' ? 'Не знают — передать проверяющим' : 'Не знают — в книгу замечаний') + ' <span class="kbd">N</span></button>';
+      html += '<button class="btn" data-action="pass">' + esc(c.phase === 'naryad' ? T.passToCheck : T.bookPass) + ' <span class="kbd">N</span></button>';
       if (card.kind !== 'choice') html += '<button class="btn btn-primary btn-big" data-action="verify">Проверить <span class="kbd">Enter</span></button>';
       html += '</div>';
     }
@@ -961,7 +1002,7 @@
       return '<button class="plate" data-action="place" data-step="' + step + '">' + esc(card.steps[step].text) + '</button>';
     }).join('');
     return '<div class="order-cols">' +
-      '<div class="order-col"><div class="col-head head">Порядок развода</div><ol class="slots">' + slots + '</ol></div>' +
+      '<div class="order-col"><div class="col-head head">' + esc(card.column || T.orderHead) + '</div><ol class="slots">' + slots + '</ol></div>' +
       '<div class="order-col"><div class="col-head head">Шаги ' + (poolItems ? '<span class="col-sub">кликните по шагу, который назвала группа</span>' : '') + '</div>' +
       '<div class="plates">' + (poolItems || '<div class="plates-empty">Все шаги расставлены. Кликните по шагу слева, чтобы вернуть его.</div>') + '</div></div>' +
       '</div>';
@@ -1003,7 +1044,7 @@
   function renderResult(c, card) {
     var r = c.result;
     if (!r.by) {
-      return '<div class="result result-none"><span class="stamp head">В книгу замечаний</span>' +
+      return '<div class="result result-none"><span class="stamp head">' + esc(T.bookTo) + '</span>' +
         '<span class="result-text">«' + esc(card.bookNote) + '»</span></div>';
     }
     return '<div class="result result-' + r.by + '"><span class="result-points head">+' + r.points + '</span>' +
@@ -1033,8 +1074,8 @@
       '<div class="alarm-text head">' + esc(DATA.general.arrival) + '</div>' +
       '<div class="alarm-sub head">' + esc(DATA.general.smirno) + '</div>' +
       '<div class="alarm-actions">' +
-      '<button class="btn btn-big" data-action="smirno" data-loud="0">Вяло</button>' +
-      '<button class="btn btn-primary btn-big" data-action="smirno" data-loud="1">Громко и чётко! +' + DATA.points.smirno + '</button>' +
+      '<button class="btn btn-big" data-action="smirno" data-loud="0">' + esc(T.greetWeak) + '</button>' +
+      '<button class="btn btn-primary btn-big" data-action="smirno" data-loud="1">' + esc(T.greetLoud) + ' +' + DATA.points.smirno + '</button>' +
       '</div></div>';
   }
 
@@ -1044,14 +1085,14 @@
       ? '<ol class="gbook">' + state.book.map(function (i) {
         return '<li><span class="gbook-card head">Карточка ' + (i + 1) + '</span>' + esc(DATA.cards[i].bookNote) + '</li>';
       }).join('') + '</ol>'
-      : '<p class="lead">Страницы чистые — ни одного замечания за сутки.</p>';
+      : '<p class="lead">' + esc(T.bookEmpty) + '</p>';
     var penalty = Math.min(n * DATA.points.bookPenalty, Math.max(0, pool()));
     return '<div class="dossier dossier-book enter" data-k="book">' +
-      '<div class="doc-head"><div class="kicker">Генерал открывает</div>' +
+      '<div class="doc-head"><div class="kicker">' + esc(T.bossOpens) + '</div>' +
       (n ? '' : '<span class="stamp stamp-small head">Без замечаний</span>') + '</div>' +
-      '<div class="title head">Книга замечаний</div>' + list +
+      '<div class="title head">' + esc(T.book) + '</div>' + list +
       '<div class="doc-actions"><button class="btn btn-primary btn-big" data-action="accept-book">' +
-      (n ? 'Принять замечания: −' + penalty : 'Генерал доволен — дальше') + ' <span class="kbd">Пробел</span></button></div></div>';
+      (n ? 'Принять замечания: −' + penalty : esc(T.bossClean)) + ' <span class="kbd">Пробел</span></button></div></div>';
   }
 
   function renderGeneralQuestion(g) {
@@ -1085,19 +1126,19 @@
     if (answered) {
       var right = g.picked === 0;
       result = '<div class="result ' + (right ? 'result-naryad' : 'result-none') + '">' +
-        (right ? '<span class="result-points head">+' + DATA.points.general + '</span><span class="result-text head">Генерал доволен</span>'
-          : '<span class="stamp head">Генерал хмурится</span><span class="result-text">Очки за этот вопрос не начислены</span>') +
+        (right ? '<span class="result-points head">+' + DATA.points.general + '</span><span class="result-text head">' + esc(T.bossHappy) + '</span>'
+          : '<span class="stamp head">' + esc(T.bossFrown) + '</span><span class="result-text">Очки за этот вопрос не начислены</span>') +
         '</div>' + renderExplain(q.explain, q.norm) +
         '<div class="task-actions"><button class="btn btn-primary btn-big" data-action="gnext">' +
         (g.q + 1 < DATA.general.questions.length ? 'Следующий вопрос' : 'Итоги') + ' <span class="kbd">Пробел</span></button></div>';
     }
 
     return '<div class="task task-general enter" data-k="gq:' + g.q + '">' +
-      '<div class="task-top"><span class="task-num head">Вопрос генерала ' + (g.q + 1) + ' из ' + DATA.general.questions.length + '</span>' +
+      '<div class="task-top"><span class="task-num head">' + esc(T.bossQuestion) + ' ' + (g.q + 1) + ' из ' + DATA.general.questions.length + '</span>' +
       '<span class="chip head">' + pts(DATA.points.general) + '</span>' +
       '<span class="side-now side-general head">Отвечают все</span></div>' +
       '<div class="report"><div class="report-q">' + esc(q.prompt) + '</div>' +
-      (g.callOn && !answered ? '<div class="check-msg head">Звонок старшине: группа советуется с преподавателем</div>' : '') + '</div>' +
+      (g.callOn && !answered ? '<div class="check-msg head">' + esc(DATA.hints.call.title) + ': группа советуется с преподавателем</div>' : '') + '</div>' +
       '<div class="options">' + options + '</div>' +
       (answered ? result : '<div class="hints"><span class="hints-label head">Подсказки за очки из котла</span>' + hints + '</div>') +
       '</div>';
@@ -1110,21 +1151,21 @@
     var grade = gradeFor(total);
     var e = state.earned;
     var rows = [
-      ['Наряд', e.naryad],
-      ['Проверяющие', e.check],
-      ['«Смирно!» генералу', e.smirno],
-      ['Вопросы генерала', e.general],
-      ['Книга замечаний', -e.penalty],
+      [SIDES.naryad.name, e.naryad],
+      [SIDES.check.name, e.check],
+      [T.finalGreet, e.smirno],
+      [T.finalQuestions, e.general],
+      [T.book, -e.penalty],
       ['Подсказки', -e.hints]
     ].map(function (r) {
-      return '<tr><td>' + r[0] + '</td><td class="num head">' + signed(r[1]) + '</td></tr>';
+      return '<tr><td>' + esc(r[0]) + '</td><td class="num head">' + signed(r[1]) + '</td></tr>';
     }).join('');
     var book = state.book.length
-      ? '<div class="final-book"><div class="col-head head">Книга замечаний</div><ol>' +
+      ? '<div class="final-book"><div class="col-head head">' + esc(T.book) + '</div><ol>' +
         state.book.map(function (i) { return '<li>' + esc(DATA.cards[i].bookNote) + '</li>'; }).join('') + '</ol></div>'
       : '';
     return '<div class="screen"><div class="dossier dossier-final enter" data-k="final">' +
-      '<div class="kicker">Итоги суток</div>' +
+      '<div class="kicker">' + esc(T.finalKicker) + '</div>' +
       '<div class="final-stamp stamp head">' + esc(grade.stamp) + '</div>' +
       '<p class="lead">' + esc(grade.text) + '</p>' +
       '<div class="final-grid"><table class="final-table">' + rows +
