@@ -47,7 +47,8 @@
   function esc(value) {
     return String(value).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
-    }).replace(/(\d) (?=\d)/g, '$1\u00a0').replace(/ = /g, '\u00a0=\u00a0'); // «Y = 7 484 700» не рвётся
+    }).replace(/(\d) (?=\d|(?:к?м|см)(?![а-яё]))/g, '$1\u00a0') // «6 026 400», «2 см» не рвутся
+      .replace(/ = /g, '\u00a0=\u00a0');
   }
   function range(n) {
     var list = [];
